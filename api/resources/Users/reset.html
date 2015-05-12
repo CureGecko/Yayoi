@@ -1,0 +1,68 @@
+<style type="text/css">
+#resetPanel {
+	width: 400px;
+	margin: 0 auto;
+}
+#password_score {
+	height: 5px;
+}
+.score_0 {
+	width: 1%;
+	background-color: #ff0000;
+}
+.score_1 {
+	width: 25%;
+	background-color: #ff7f00;
+}
+.score_2 {
+	width: 50%;
+	background-color: #ffff00;
+}
+.score_3 {
+	width: 75%;
+	background-color: #7f007f;
+}
+.score_4 {
+	width: 100%;
+	background-color: #00ff00;
+}
+</style>
+<div class="panel panel-default" id="resetPanel">
+  <div class="panel-heading">
+    <h3 class="panel-title">Reset Password for {{.Username}}</h3>
+  </div>
+  <div class="panel-body">
+    <form id="signupForm">
+    	<input type="hidden" id="resetTokenField" value="{{.Token}}" />
+		<input type="password" class="form-control" placeholder="Password" id="passwordField" />
+		<div id="password_score" class="score_0">&nbsp;</div>
+		<div id="password_status"></div>
+		<input class="btn btn-primary" type="submit" value="Reset">
+	</form>
+  </div>
+</div>
+<script type="text/javascript" src="/js/zxcvbn-async.js"></script>
+<script type="text/javascript">
+	$("#passwordField").bind("input paste", function(event) {
+		if (typeof zxcvbn != "function") {
+			$("#password_status").html("Loading zxcvbn...");
+			loadingCheckTimer = setInterval(function() {
+				if (typeof zxcvbn == "function") {
+					var result = zxcvbn($("#password_field").val());
+					$("#password_score").attr("class", "score_"+result.score);
+					$("#password_stats").html("Entropy: "+result.entropy+"<br />Estimated time for hackers to crack: "+result.crack_time_display+"<br />Estimated time for hackers to crack in seconds: "+result.crack_time);
+					clearInterval(loadingCheckTimer);
+					loadingCheckTimer = null;
+				}
+			}, 200);
+		} else {
+			var result = zxcvbn($(this).val());
+			$("#password_score").attr("class", "score_"+result.score);
+			$("#password_status").html("Estimated time for hackers to crack: "+result.crack_time_display);
+		}
+	});
+	$("#signupForm").submit(function(event) {
+
+		event.preventDefault();
+	});
+</script>

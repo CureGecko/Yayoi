@@ -1,0 +1,104 @@
+<style type="text/css">
+#signupPanel {
+	width: 400px;
+	margin: 0 auto;
+}
+#password_score {
+	height: 5px;
+}
+.score_0 {
+	width: 1%;
+	background-color: #ff0000;
+}
+.score_1 {
+	width: 25%;
+	background-color: #ff7f00;
+}
+.score_2 {
+	width: 50%;
+	background-color: #ffff00;
+}
+.score_3 {
+	width: 75%;
+	background-color: #7f007f;
+}
+.score_4 {
+	width: 100%;
+	background-color: #00ff00;
+}
+
+.badinput:focus {   
+  border-color: rgba(188, 24, 9, 0.8);
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.075) inset, 0 0 8px rgba(188, 24, 9, 0.6);
+  outline: 0 none;
+}
+.goodinput:focus {   
+  border-color: rgba(0, 174, 0, 0.8);
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.075) inset, 0 0 8px rgba(0, 174, 0, 0.6);
+  outline: 0 none;
+}
+</style>
+<span id="apiLoader"></span>
+<div class="panel panel-default" id="signupPanel">
+  <div class="panel-heading">
+    <h3 class="panel-title">Signup</h3>
+  </div>
+  <div class="panel-body">
+    <form id="signupForm">
+		<input type="hidden" value="{{.PasswordSalt}}" id="passwordSalt" />
+		<input type="email" class="form-control" placeholder="Email Address" id="emailField" />
+		<input type="text" class="form-control" placeholder="Username" id="usernameField" />
+		<input type="password" class="form-control" placeholder="Password" id="passwordField" />
+		<div id="password_score" class="score_0">&nbsp;</div>
+		<div id="password_status"></div>
+		<input class="btn btn-success" type="button" value="Login" id="loginButton">
+		<input class="btn btn-primary" type="submit" value="Signup" id="signupButton">
+	</form>
+  </div>
+</div>
+<script type="text/javascript" src="/js/zxcvbn.js"></script>
+<script type="text/javascript" src="/js/cryptojs/rollups/sha256.js"></script>
+<script type="text/javascript" src="/js/cryptojs/rollups/pbkdf2.js"></script>
+<script type="text/javascript">
+	$("#emailField").bind("input paste", function(event) {
+		if (/^([\w-]+(?:\.[\w-]+)*)@((?:[\w-]+\.)*\w[\w-]{0,66})\.([a-z]{2,6}(?:\.[a-z]{2})?)$/i.test($(this).val())) {
+			$(this).removeClass("badinput");
+			$(this).addClass("goodinput");
+		} else {
+			$(this).removeClass("goodinput");
+			$(this).addClass("badinput");
+		}
+	});
+	$("#passwordField").bind("input paste", function(event) {
+		if (typeof zxcvbn != "function") {
+			$("#password_status").html("Loading zxcvbn...");
+			loadingCheckTimer = setInterval(function() {
+				if (typeof zxcvbn == "function") {
+					var result = zxcvbn($("#password_field").val());
+					$("#password_score").attr("class", "score_"+result.score);
+					$("#password_stats").html("Entropy: "+result.entropy+"<br />Estimated time for hackers to crack: "+result.crack_time_display+"<br />Estimated time for hackers to crack in seconds: "+result.crack_time);
+					clearInterval(loadingCheckTimer);
+					loadingCheckTimer = null;
+				}
+			}, 200);
+		} else {
+			var result = zxcvbn($(this).val());
+			$("#password_score").attr("class", "score_"+result.score);
+			$("#password_status").html("Estimated time for hackers to crack: "+result.crack_time_display);
+		}
+	})
+	$("#loginButton").click(function(event) {
+		$("#mainContainer").load("/api/users/login");
+	})
+	$("#signupForm").submit(function(event) {
+		var key512Bits1000Iterations = CryptoJS.PBKDF2($("#passwordField").val(), CryptoJS.enc.Hex.parse($("#passwordSalt").val()), { keySize: 512/32, iterations: 1000, hasher: CryptoJS.algo.SHA256 });
+
+		$("#signupButton").prop("disabled",true);
+		$("#apiLoader").load("/api/users/signup", {email: $("#emailField").val(), name: $("#usernameField").val(), passwordSalt: $("#passwordSalt").val(), password: key512Bits1000Iterations.toString(CryptoJS.enc.Hex)}, function(response, status, xhr) {
+			if ($("#apiLoader #success").text()=="false") {
+				$("#signupButton").prop("disabled",false);
+			}
+		});
+		event.preventDefault();
+	});
+</script>

@@ -1,0 +1,21 @@
+<style type="text/css">
+#loginPanel {
+	max-width: 400px;
+	margin: 0 auto;
+}
+</style>
+<div class="panel panel-default" id="loginPanel">
+	<div class="panel-heading">
+		<h3 class="panel-title">User Verification</h3>
+	</div>
+	<div class="panel-body">
+{{if .Success}}
+		The user account {{.Name}} was successfully verified. You may now login!
+		<script type="text/javascript">
+		setTimeout(function() {loadPage("users/login");}, 2000);
+		</script>
+{{else}}
+		<span style="color: #ff0000">An error occured:</span> {{.Reason}}
+{{end}}
+	</div>
+</div>

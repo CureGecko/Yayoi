@@ -32,7 +32,7 @@ var dbName string = "yayoi"
 
 //Main server structure for dealing with requests via FCGI
 type Server struct {
-	db *sql.DB
+	DB *sql.DB
 }
 
 /*
@@ -50,6 +50,9 @@ func (s Server) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 		fullPath = fullPath[0 : len(fullPath)-1]
 	}
 	path := strings.Split(fullPath, "/")
+	if len(fullPath) != 0 {
+		path = Filter(path)
+	}
 	log.Println(path)
 
 	//Determine which processor should process the request.

@@ -1,33 +1,49 @@
 <style type="text/css">
 #loginPanel {
-	width: 400px;
+	max-width: 400px;
 	margin: 0 auto;
 }
 </style>
+<span id="loginCheck"></span>
 <div class="panel panel-default" id="loginPanel">
-  <div class="panel-heading">
-    <h3 class="panel-title">Login</h3>
-  </div>
-  <div class="panel-body">
-    <form id="loginForm">
-		<input type="text" class="form-control" placeholder="Username" />
-		<input type="password" class="form-control" placeholder="Password" />
-		<input type="checkbox" id="longLogin"><label for="longLogin">&nbsp;Keep logged in for 30 days</label><br />
-		<input class="btn btn-success" type="button" value="Signup" id="signupButton" />
-		<input class="btn btn-danger" type="button" value="Forgot Password" id="forgotButton" />
-		<input class="btn btn-primary" type="submit" value="Login">
-	</form>
-  </div>
+	<div class="panel-heading">
+		<h3 class="panel-title">Login</h3>
+	</div>
+	<div class="panel-body">
+		<form id="loginForm">
+			<input type="text" class="form-control" placeholder="Username" id="usernameField" />
+			<input type="password" class="form-control" placeholder="Password" id="passwordField" />
+			<input type="checkbox" id="longLogin"><label for="longLogin">&nbsp;Keep logged in for 30 days</label><br />
+			<input class="btn btn-success" type="button" value="Signup" id="signupButton" />
+			<input class="btn btn-danger" type="button" value="Forgot Password" id="forgotButton" />
+			<input class="btn btn-primary" type="submit" value="Login">
+		</form>
+	</div>
 </div>
+<script type="text/javascript" src="/js/scrypt.js"></script>
+<script type="text/javascript" src="/js/cryptojs/rollups/sha512.js"></script>
 <script type="text/javascript">
+	var scrypt = scrypt_module_factory();
+
+	//Go to signup page.
 	$("#signupButton").click(function(event) {
-		$("#mainContainer").load("/api/users/signup");
+		loadPage("users/signup");
 	});
+	//Got to forgot password page.
 	$("#forgotButton").click(function(event) {
-		$("#mainContainer").load("/api/users/forgot");
+		loadPage("users/forgot");
 	});
 	$("#loginForm").submit(function(event) {
+		$("#loginCheck").load("/api/users/salt", {name: $("#usernameField").val()}, function(response, status, xhr) {
+			if ($("#loginCheck #success").text()=="true") {
+				var password = scrypt.to_hex(scrypt.crypto_scrypt(scrypt.encode_utf8($("#passwordField").val()), from_hex($("#loginCheck #salt").text()), 16384, 8, 1, 64));
+				var hash = CryptoJS.SHA512(CryptoJS.enc.Hex.parse(password+$("#loginCheck #nonce").text())).toString(CryptoJS.enc.Hex);
 
+				$("#loginCheck").load("/api/users/login", {name: $("#usernameField").val(), password: hash}, function(response, status, xhr) {
+
+				});
+			}
+		});
 		event.preventDefault();
 	});
 </script>

@@ -1,29 +1,30 @@
 <style type="text/css">
 #forgotPanel {
-	width: 400px;
+	max-width: 400px;
 	margin: 0 auto;
 }
 </style>
 <div class="panel panel-default" id="forgotPanel">
-  <div class="panel-heading">
-    <h3 class="panel-title">Forgot Password</h3>
-  </div>
-  <div class="panel-body">
-    <form id="forgotForm">
-		<input type="email" class="form-control" placeholder="Email Address" id="emailField" />
-		<div id="password_score" class="score_0">&nbsp;</div>
-		<div id="password_status"></div>
-		<input class="btn btn-success" type="button" value="Login" id="loginButton">
-		<input class="btn btn-primary" type="submit" value="Request Reset">
-	</form>
-  </div>
+	<div class="panel-heading">
+		<h3 class="panel-title">Forgot Password</h3>
+	</div>
+	<div class="panel-body">
+		<form id="forgotForm">
+			<input type="email" class="form-control" placeholder="Email Address" id="emailField" />
+			<div id="password_score" class="score_0">&nbsp;</div>
+			<div id="password_status"></div>
+			<input class="btn btn-success" type="button" value="Login" id="loginButton">
+			<input class="btn btn-primary" type="submit" value="Request Reset">
+		</form>
+	</div>
 </div>
 <script type="text/javascript">
 	$("#forgotForm").submit(function(event) {
 
 		event.preventDefault();
 	});
+	//Go to login page.
 	$("#loginButton").click(function(event) {
-		$("#mainContainer").load("/api/users/login");
+		loadPage("users/login");
 	});
 </script>

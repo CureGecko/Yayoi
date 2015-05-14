@@ -1,0 +1,10 @@
+<span class="hidden" id="success">{{.Success}}</span>
+{{if .Success}}
+<span class="hidden" id="salt">{{.Salt}}</span>
+<span class="hidden" id="nonce">{{.Nonce}}</span>
+{{else}}
+<div class="alert {{if .Success}}alert-success{{else}}alert-danger{{end}} alert-dismissible" role="alert">
+  <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+  {{.Message}}
+</div>
+{{end}}

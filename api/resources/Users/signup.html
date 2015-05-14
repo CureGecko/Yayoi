@@ -1,6 +1,6 @@
 <style type="text/css">
 #signupPanel {
-	width: 400px;
+	max-width: 400px;
 	margin: 0 auto;
 }
 #password_score {
@@ -40,27 +40,29 @@
 </style>
 <span id="apiLoader"></span>
 <div class="panel panel-default" id="signupPanel">
-  <div class="panel-heading">
-    <h3 class="panel-title">Signup</h3>
-  </div>
-  <div class="panel-body">
-    <form id="signupForm">
-		<input type="hidden" value="{{.PasswordSalt}}" id="passwordSalt" />
-		<span id="availabilityCheck"></span>
-		<input type="email" class="form-control" placeholder="Email Address" id="emailField" />
-		<input type="text" class="form-control" placeholder="Username" id="usernameField" />
-		<input type="password" class="form-control" placeholder="Password" id="passwordField" />
-		<div id="password_score" class="score_0">&nbsp;</div>
-		<div id="password_status"></div>
-		<input class="btn btn-success" type="button" value="Login" id="loginButton">
-		<input class="btn btn-primary" type="submit" value="Signup" id="signupButton">
-	</form>
-  </div>
+	<div class="panel-heading">
+		<h3 class="panel-title">Signup</h3>
+	</div>
+	<div class="panel-body">
+		<form id="signupForm">
+			<input type="hidden" value="{{.PasswordSalt}}" id="passwordSalt" />
+			<span id="availabilityCheck"></span>
+			<input type="email" class="form-control" placeholder="Email Address" id="emailField" />
+			<input type="text" class="form-control" placeholder="Username" id="usernameField" />
+			<input type="password" class="form-control" placeholder="Password" id="passwordField" />
+			<div id="password_score" class="score_0">&nbsp;</div>
+			<div id="password_status"></div>
+			<input class="btn btn-success" type="button" value="Login" id="loginButton">
+			<input class="btn btn-primary" type="submit" value="Signup" id="signupButton">
+		</form>
+	</div>
 </div>
 <script type="text/javascript" src="/js/zxcvbn.js"></script>
-<script type="text/javascript" src="/js/cryptojs/rollups/sha256.js"></script>
-<script type="text/javascript" src="/js/cryptojs/rollups/pbkdf2.js"></script>
+<script type="text/javascript" src="/js/scrypt.js"></script>
 <script type="text/javascript">
+	var scrypt = scrypt_module_factory();
+
+	//Asks the server if username/email address is available to register with.
 	function checkAvailability() {
 		$("#availabilityCheck").load("/api/users/available", {email: $("#emailField").val(), name: $("#usernameField").val()}, function(response, status, xhr) {
 			if ($("#availabilityCheck #emailAvailable").text()=="false") {
@@ -73,6 +75,8 @@
 			}
 		});
 	}
+
+	//Validates email address.
 	$("#emailField").bind("input paste", function(event) {
 		if (/^([\w-]+(?:\.[\w-]+)*)@((?:[\w-]+\.)*\w[\w-]{0,66})\.([a-z]{2,6}(?:\.[a-z]{2})?)$/i.test($(this).val()) && $(this).val().length<=100) {
 			$(this).removeClass("badinput");
@@ -84,6 +88,8 @@
 			$("#availabilityCheck").text("");
 		}
 	});
+
+	//Validates username.
 	$("#usernameField").bind("input paste", function(event) {
 		if (/^[A-Za-z0-9]+[A-Za-z0-9_-]*$/i.test($(this).val()) && $(this).val().length<=50) {
 			$(this).removeClass("badinput");
@@ -95,6 +101,8 @@
 			$("#availabilityCheck").text("");
 		}
 	});
+
+	//Shows password strength.
 	$("#passwordField").bind("input paste", function(event) {
 		if (typeof zxcvbn != "function") {
 			$("#password_status").html("Loading zxcvbn...");
@@ -112,15 +120,19 @@
 			$("#password_score").attr("class", "score_"+result.score);
 			$("#password_status").html("Estimated time for hackers to crack: "+result.crack_time_display);
 		}
-	})
+	});
+
+	//Goes back to the login page.
 	$("#loginButton").click(function(event) {
-		$("#mainContainer").load("/api/users/login");
-	})
+		loadPage("users/login");
+	});
+
+	//Sends the entered data to server for validation and signup.
 	$("#signupForm").submit(function(event) {
-		var key512Bits1000Iterations = CryptoJS.PBKDF2($("#passwordField").val(), CryptoJS.enc.Hex.parse($("#passwordSalt").val()), { keySize: 512/32, iterations: 1000, hasher: CryptoJS.algo.SHA256 });
+		var password = scrypt.to_hex(scrypt.crypto_scrypt(scrypt.encode_utf8($("#passwordField").val()), from_hex($("#passwordSalt").val()), 16384, 8, 1, 64));
 
 		$("#signupButton").prop("disabled",true);
-		$("#apiLoader").load("/api/users/signup", {email: $("#emailField").val(), name: $("#usernameField").val(), passwordSalt: $("#passwordSalt").val(), password: key512Bits1000Iterations.toString(CryptoJS.enc.Hex)}, function(response, status, xhr) {
+		$("#apiLoader").load("/api/users/signup", {email: $("#emailField").val(), name: $("#usernameField").val(), passwordSalt: $("#passwordSalt").val(), password: password}, function(response, status, xhr) {
 			if ($("#apiLoader #success").text()=="false") {
 				$("#signupButton").prop("disabled",false);
 			}

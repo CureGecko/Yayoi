@@ -41,7 +41,9 @@
 	</form>
   </div>
 </div>
-<script type="text/javascript" src="/js/zxcvbn-async.js"></script>
+<script type="text/javascript" src="/js/zxcvbn.js"></script>
+<script type="text/javascript" src="/js/cryptojs/rollups/sha256.js"></script>
+<script type="text/javascript" src="/js/cryptojs/rollups/pbkdf2.js"></script>
 <script type="text/javascript">
 	$("#passwordField").bind("input paste", function(event) {
 		if (typeof zxcvbn != "function") {

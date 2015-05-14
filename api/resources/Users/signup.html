@@ -46,6 +46,7 @@
   <div class="panel-body">
     <form id="signupForm">
 		<input type="hidden" value="{{.PasswordSalt}}" id="passwordSalt" />
+		<span id="availabilityCheck"></span>
 		<input type="email" class="form-control" placeholder="Email Address" id="emailField" />
 		<input type="text" class="form-control" placeholder="Username" id="usernameField" />
 		<input type="password" class="form-control" placeholder="Password" id="passwordField" />
@@ -60,13 +61,38 @@
 <script type="text/javascript" src="/js/cryptojs/rollups/sha256.js"></script>
 <script type="text/javascript" src="/js/cryptojs/rollups/pbkdf2.js"></script>
 <script type="text/javascript">
+	function checkAvailability() {
+		$("#availabilityCheck").load("/api/users/available", {email: $("#emailField").val(), name: $("#usernameField").val()}, function(response, status, xhr) {
+			if ($("#availabilityCheck #emailAvailable").text()=="false") {
+				$("#emailField").removeClass("goodinput");
+				$("#emailField").addClass("badinput");
+			}
+			if ($("#availabilityCheck #nameAvailable").text()=="false") {
+				$("#usernameField").removeClass("goodinput");
+				$("#usernameField").addClass("badinput");
+			}
+		});
+	}
 	$("#emailField").bind("input paste", function(event) {
-		if (/^([\w-]+(?:\.[\w-]+)*)@((?:[\w-]+\.)*\w[\w-]{0,66})\.([a-z]{2,6}(?:\.[a-z]{2})?)$/i.test($(this).val())) {
+		if (/^([\w-]+(?:\.[\w-]+)*)@((?:[\w-]+\.)*\w[\w-]{0,66})\.([a-z]{2,6}(?:\.[a-z]{2})?)$/i.test($(this).val()) && $(this).val().length<=100) {
 			$(this).removeClass("badinput");
 			$(this).addClass("goodinput");
+			checkAvailability();
 		} else {
 			$(this).removeClass("goodinput");
 			$(this).addClass("badinput");
+			$("#availabilityCheck").text("");
+		}
+	});
+	$("#usernameField").bind("input paste", function(event) {
+		if (/^[A-Za-z0-9]+[A-Za-z0-9_-]*$/i.test($(this).val()) && $(this).val().length<=50) {
+			$(this).removeClass("badinput");
+			$(this).addClass("goodinput");
+			checkAvailability();
+		} else {
+			$(this).removeClass("goodinput");
+			$(this).addClass("badinput");
+			$("#availabilityCheck").text("");
 		}
 	});
 	$("#passwordField").bind("input paste", function(event) {

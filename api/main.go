@@ -14,6 +14,7 @@ import (
 	"database/sql"
 	"fmt"
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/mostafah/mandrill"
 	"log"
 	"net"
 	"net/http"
@@ -45,7 +46,7 @@ func (s Server) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 
 	//Parse the path of the request.
 	fullPath := strings.Replace(request.URL.Path, APIPath, "", 1)
-	if fullPath[len(fullPath)-1:] == "/" {
+	if len(fullPath) != 0 && fullPath[len(fullPath)-1:] == "/" {
 		fullPath = fullPath[0 : len(fullPath)-1]
 	}
 	path := strings.Split(fullPath, "/")
@@ -72,6 +73,13 @@ func main() {
 	}
 	//Close when the program closes.
 	defer db.Close()
+
+	//API Key for Mandrill
+	mandrill.Key = "API-Key"
+	manErr := mandrill.Ping()
+	if manErr != nil {
+		log.Fatal(manErr)
+	}
 
 	//Setup FCGI Server
 	server := Server{db}

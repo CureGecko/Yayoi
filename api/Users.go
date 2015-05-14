@@ -13,11 +13,15 @@ package main
 import (
 	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"fmt"
+	"github.com/mostafah/mandrill"
 	"html/template"
 	"log"
 	"net/http"
 	"regexp"
+	"strconv"
+	"time"
 )
 
 type Users struct {
@@ -33,6 +37,8 @@ func (u Users) Process() {
 		u.Login()
 	case "signup":
 		u.Signup()
+	case "available":
+		u.Available()
 	case "forgot":
 		u.Forgot()
 	case "reset":
@@ -70,26 +76,30 @@ func (u Users) Signup() {
 			Message string
 		}
 		info := Info{true, ""}
+		email := u.Request.Form.Get("email")
+		passwordSalt := u.Request.Form.Get("passwordSalt")
+		password := u.Request.Form.Get("password")
+		name := u.Request.Form.Get("name")
 
-		if !u.isEmail(u.Request.Form["email"][0]) {
+		if !u.isEmail(email) || len(email) > 100 {
 			info.Success = false
 			info.Message = "Invalid email address provided."
 		}
-		if u.Request.Form["passwordSalt"] == nil || !u.isHexadecimal(u.Request.Form["passwordSalt"][0]) || len(u.Request.Form["passwordSalt"][0]) != 32 {
+		if passwordSalt == "" || !u.isHexadecimal(passwordSalt) || len(passwordSalt) != 32 {
 			info.Success = false
 			if info.Message != "" {
 				info.Message += " "
 			}
 			info.Message += "Invalid salt provided."
 		}
-		if u.Request.Form["password"] == nil || !u.isHexadecimal(u.Request.Form["password"][0]) || len(u.Request.Form["password"][0]) != 128 {
+		if password == "" || !u.isHexadecimal(password) || len(password) != 128 {
 			info.Success = false
 			if info.Message != "" {
 				info.Message += " "
 			}
 			info.Message += "Invalid password provided."
 		}
-		if u.Request.Form["name"] == nil || len(u.Request.Form["name"][0]) == 0 {
+		if name == "" || regexp.MustCompile("^[A-Za-z0-9]+[A-Za-z0-9_-]*$").MatchString(name) == false || len(name) > 50 {
 			info.Success = false
 			if info.Message != "" {
 				info.Message += " "
@@ -98,9 +108,9 @@ func (u Users) Signup() {
 		}
 		if info.Success {
 			var id int
-			err := u.Server.db.QueryRow("SELECT id FROM users WHERE email=?", u.Request.Form["email"][0]).Scan(&id)
+			err := u.Server.db.QueryRow("SELECT id FROM users WHERE email=?", email).Scan(&id)
 			if err != nil && err != sql.ErrNoRows {
-				log.Fatal(err)
+				log.Println(err)
 				info.Success = false
 				info.Message = "There was an unexpected error."
 			} else if err != sql.ErrNoRows {
@@ -110,9 +120,9 @@ func (u Users) Signup() {
 		}
 		if info.Success {
 			var id int
-			err := u.Server.db.QueryRow("SELECT id FROM users WHERE name=?", u.Request.Form["name"][0]).Scan(&id)
+			err := u.Server.db.QueryRow("SELECT id FROM users WHERE name=?", name).Scan(&id)
 			if err != nil && err != sql.ErrNoRows {
-				log.Fatal(err)
+				log.Println(err)
 				info.Success = false
 				info.Message = "There was an unexpected error."
 			} else if err != sql.ErrNoRows {
@@ -122,7 +132,43 @@ func (u Users) Signup() {
 		}
 
 		if info.Success {
-			info.Message = "Everything looks ok!"
+			signupKey := randomString(30)
+			now := time.Now().Unix()
+			passwordHex, _ := hex.DecodeString(password)
+			passwordSaltHex, _ := hex.DecodeString(passwordSalt)
+			result, err := u.Server.db.Exec("INSERT INTO users (`name`,`email`,`password`,`paswordSalt`,`signupKey`,`joinTime`) VALUES (?,?,?,?,?,?)", name, email, passwordHex, passwordSaltHex, signupKey, now)
+			if err != nil {
+				log.Println(err)
+				info.Success = false
+				info.Message = "There was an unexpected error."
+			} else {
+				id, err := result.LastInsertId()
+				if err != nil {
+					log.Println(err)
+					info.Success = false
+					info.Message = "There was an unexpected error."
+				} else {
+					msg := mandrill.NewMessageTo(email, name)
+					msg.Text = "Please verify your email address at http://127.0.0.1/users/verify?id=" + strconv.FormatInt(id, 10) + "&key=" + signupKey
+					msg.Subject = "Verify your email address."
+					msg.FromEmail = "noreply@yayoi.se"
+					msg.FromName = "Yayoi"
+					res, err := msg.Send(false)
+					if err != nil || len(res) == 0 {
+						log.Println("Mandrill Error:", err)
+						info.Success = false
+						info.Message = "There was an error sending an email."
+						u.Server.db.Exec("DELETE FROM users WHERE id=?", id)
+						u.Server.db.Exec("ALTER TABLE users AUTO_INCREMENT=?", id)
+					} else if res[0].Status != "sent" {
+						log.Println("Result", res[0].Status, res[0].RejectionReason, res[0].Id)
+						info.Success = false
+						info.Message = "There was an error sending an email."
+					} else {
+						info.Message = "Sucessfully created account. Check your email for an activation link."
+					}
+				}
+			}
 		}
 
 		t, _ := template.ParseFiles("resources/Users/signup_result.html")
@@ -133,12 +179,57 @@ func (u Users) Signup() {
 		}
 		b := make([]byte, 16)
 		rand.Read(b)
-		salt := fmt.Sprintf("%x", b)
+		salt := hex.EncodeToString(b)
 		info := Info{salt}
 
 		t, _ := template.ParseFiles("resources/Users/signup.html")
 		t.Execute(u.Writer, info)
 	}
+}
+
+func (u Users) Available() {
+	type Info struct {
+		EmailAvailable bool
+		NameAvailable  bool
+		Reason         string
+	}
+	info := Info{true, true, ""}
+
+	name := u.Request.Form.Get("name")
+	email := u.Request.Form.Get("email")
+
+	if email != "" {
+		var id int
+		err := u.Server.db.QueryRow("SELECT id FROM users WHERE email=?", email).Scan(&id)
+		if err != nil && err != sql.ErrNoRows {
+			log.Println(err)
+			info.EmailAvailable = false
+			info.Reason = "There was an unexpected error."
+		} else if err != sql.ErrNoRows {
+			info.EmailAvailable = false
+			info.Reason = "The email address is already in use."
+		}
+	} else {
+		info.EmailAvailable = false
+	}
+
+	if name != "" {
+		var id int
+		err := u.Server.db.QueryRow("SELECT id FROM users WHERE name=?", name).Scan(&id)
+		if err != nil && err != sql.ErrNoRows {
+			log.Println(err)
+			info.NameAvailable = false
+			info.Reason = "There was an unexpected error."
+		} else if err != sql.ErrNoRows {
+			info.NameAvailable = false
+			info.Reason = "The username is already in use."
+		}
+	} else {
+		info.NameAvailable = false
+	}
+
+	t, _ := template.ParseFiles("resources/Users/available.html")
+	t.Execute(u.Writer, info)
 }
 
 func (u Users) Forgot() {

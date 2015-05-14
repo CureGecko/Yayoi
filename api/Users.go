@@ -29,7 +29,7 @@ import (
 
 //
 type Users struct {
-	Server  Server
+	Server  Iori
 	Writer  http.ResponseWriter
 	Request *http.Request
 	Path    []string

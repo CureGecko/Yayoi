@@ -31,7 +31,7 @@ var dbPassword string = "password"
 var dbName string = "yayoi"
 
 //Main server structure for dealing with requests via FCGI
-type Server struct {
+type Iori struct {
 	DB *sql.DB
 }
 
@@ -40,7 +40,7 @@ Process the main information needed from a request and pass the request onto the
 Every processing structure should accept Server, Writer, Request, Path, and User.
 This function is called by the FCGI listener.
 */
-func (s Server) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
+func (s Iori) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	//Form data is not parsed automatically, we need to parse it so we can determine parameters passed in the request.
 	request.ParseForm()
 
@@ -85,10 +85,10 @@ func main() {
 	}
 
 	//Setup FCGI Server
-	server := Server{db}
+	iori := Iori{db}
 	tcp, err := net.Listen("tcp", ":9001")
 	if err != nil {
 		log.Fatal(err)
 	}
-	fcgi.Serve(tcp, server)
+	fcgi.Serve(tcp, iori)
 }

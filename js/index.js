@@ -10,10 +10,11 @@ Main logic for all pages.
 
 //The directory in which the site exists.
 var SitePath = "/";
+var APIPath = "/api/";
 
 //Loads a page form API and saves the sate to the history.
 function loadPageDetails(path, data, updateBrowser, addDataToURI) {
-	$("#mainContainer").load(SitePath+"api/"+path, data);
+	$("#mainContainer").load(APIPath+path, data);
 	if (updateBrowser) {
 		if (addDataToURI && data!=null && data!="") {
 			var uriData = data;
@@ -62,14 +63,31 @@ window.onpopstate = function(event) {
 	}
 };
 
+function updateUserInfo() {
+	$("#userInfo").load(APIPath+"users", function(response, status, xhr) {
+		var authenticated = $("#userInfo #authenticated").text()=="false";
+		$("#loginMenu").css("display", (!authenticated ? "none" : "block"));
+		$("#logoutMenu").css("display", (authenticated ? "none" : "block"));
+	});
+}
+
 //After all the elements have been rendered.
 $(document).ready(function() {
+	//First load should have user info updated.
+	updateUserInfo();
+
 	//Load the first page from API.
 	loadPageDetails(fullPath, firstLoadData, false, false);
 
 	//Handle the login menu item to load the login page.
 	$("#loadLogin").click(function(event) {
 		loadPage("users/login");
+		event.preventDefault();
+	});
+
+	//Handle the logout menu item to load the logout page.
+	$("#loadLogout").click(function(event) {
+		loadPage("users/logout");
 		event.preventDefault();
 	});
 });

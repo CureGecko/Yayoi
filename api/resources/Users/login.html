@@ -13,10 +13,10 @@
 		<form id="loginForm">
 			<input type="text" class="form-control" placeholder="Username" id="usernameField" />
 			<input type="password" class="form-control" placeholder="Password" id="passwordField" />
-			<input type="checkbox" id="longLogin"><label for="longLogin">&nbsp;Keep logged in for 30 days</label><br />
+			<br />
 			<input class="btn btn-success" type="button" value="Signup" id="signupButton" />
 			<input class="btn btn-danger" type="button" value="Forgot Password" id="forgotButton" />
-			<input class="btn btn-primary" type="submit" value="Login">
+			<input class="btn btn-primary" type="submit" value="Login" id="loginButton" />
 		</form>
 	</div>
 </div>
@@ -33,15 +33,22 @@
 	$("#forgotButton").click(function(event) {
 		loadPage("users/forgot");
 	});
+
+	//Sends the entered data to server for validation and authentication.
 	$("#loginForm").submit(function(event) {
-		$("#loginCheck").load("/api/users/salt", {name: $("#usernameField").val()}, function(response, status, xhr) {
+		$("#loginButton").prop("disabled",true);
+		$("#loginCheck").load(APIPath+"users/salt", {name: $("#usernameField").val()}, function(response, status, xhr) {
 			if ($("#loginCheck #success").text()=="true") {
 				var password = scrypt.to_hex(scrypt.crypto_scrypt(scrypt.encode_utf8($("#passwordField").val()), from_hex($("#loginCheck #salt").text()), 16384, 8, 1, 64));
 				var hash = CryptoJS.SHA512(CryptoJS.enc.Hex.parse(password+$("#loginCheck #nonce").text())).toString(CryptoJS.enc.Hex);
 
-				$("#loginCheck").load("/api/users/login", {name: $("#usernameField").val(), password: hash}, function(response, status, xhr) {
-
+				$("#loginCheck").load(APIPath+"users/login", {name: $("#usernameField").val(), password: hash}, function(response, status, xhr) {
+					if ($("#apiLoader #success").text()=="false") {
+						$("#loginButton").prop("disabled",false);
+					}
 				});
+			} else {
+				$("#loginButton").prop("disabled",false);
 			}
 		});
 		event.preventDefault();

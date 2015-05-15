@@ -1,10 +1,10 @@
 <span class="hide" id="success">{{.Success}}</span>
-{{if .Success}}
-<span class="hide" id="salt">{{.Salt}}</span>
-<span class="hide" id="nonce">{{.Nonce}}</span>
-{{else}}
 <div class="alert {{if .Success}}alert-success{{else}}alert-danger{{end}} alert-dismissible" role="alert">
   <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button>
-  {{if .UnknownError}}There was an unexpected error.{{else}}{{.Message}}{{end}}
+  {{.Message}}
 </div>
+{{if .Success}}
+<script type="text/javascript">
+setTimeout(function() {loadPage("users/login");}, 2000);
+</script>
 {{end}}

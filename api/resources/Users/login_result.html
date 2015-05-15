@@ -1,5 +1,11 @@
-<span class="hidden" id="success">{{.Success}}</span>
+<span class="hide" id="success">{{.Success}}</span>
 <div class="alert {{if .Success}}alert-success{{else}}alert-danger{{end}} alert-dismissible" role="alert">
   <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button>
-  {{.Message}}
+  {{if .UnknownError}}There was an unexpected error.{{else}}{{.Message}}{{end}}
 </div>
+{{if .Success}}
+<script type="text/javascript">
+	updateUserInfo();
+	setTimeout(function(){loadPage("");}, 2000);
+</script>
+{{end}}

@@ -14,6 +14,8 @@
 		<script type="text/javascript">
 		setTimeout(function() {loadPage("users/login");}, 2000);
 		</script>
+{{else if .VerificationResent}}
+		The verification was resent for {{.Name}} to {{.Email}}.
 {{else}}
 		<span style="color: #ff0000">An error occured:</span> {{.Reason}}
 {{end}}

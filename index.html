@@ -22,6 +22,7 @@
 </head>
 
 <body>
+	<span class="hide" id="userInfo"></span>
 	<nav class="navbar navbar-default navbar-fixed-top">
 	      <div class="container">
 	        <div class="navbar-header">
@@ -37,7 +38,8 @@
 	          <ul class="nav navbar-nav">
 	            <li><a href="#" id="loadRandom">Random</a></li>
 	            <li><a href="#" id="loadAPI">API</a></li>
-	            <li><a href="#" id="loadLogin">Login</a></li>
+	            <li id="loginMenu"><a href="#" id="loadLogin">Login</a></li>
+	            <li style="display: none;" id="logoutMenu"><a href="#" id="loadLogout">Logout</a></li>
 	          </ul>
 	        </div><!--/.nav-collapse -->
 	      </div>

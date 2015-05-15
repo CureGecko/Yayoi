@@ -1,7 +1,18 @@
+/*
+Utilities.go
+Yayoi
+
+Created by Cure Gecko on 5/13/15.
+Copyright 2015, Cure Gecko. All rights reserved.
+
+Different global utilities
+*/
+
 package main
 
 import (
 	"crypto/rand"
+	"regexp"
 )
 
 //Characters that are allowed to be used in the random string function. Because upper case characters are included, you must do a comparison in the database using "COLLATE utf8_bin"
@@ -27,4 +38,14 @@ func Filter(a []string) []string {
 		}
 	}
 	return result
+}
+
+//Checks if a string is hexadecimal.
+func isHexadecimal(s string) bool {
+	return regexp.MustCompile("^[0-9a-fA-F]+$").MatchString(s)
+}
+
+//Checks if a string follows email address standards.
+func isEmail(s string) bool {
+	return regexp.MustCompile("^([\\w-]+(?:\\.[\\w-]+)*)@((?:[\\w-]+\\.)*\\w[\\w-]{0,66})\\.([a-z]{2,6}(?:\\.[a-z]{2})?)$").MatchString(s)
 }

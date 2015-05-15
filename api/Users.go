@@ -89,14 +89,6 @@ func (u Users) Logout() {
 	IoriAuth.HttpOnly = true
 	http.SetCookie(u.Writer, IoriAuth)
 
-	IoriAuthID := new(http.Cookie)
-	IoriAuthID.Name = "IoriAuthID"
-	IoriAuthID.Value = ""
-	IoriAuthID.Path = SitePath
-	IoriAuthID.Expires = time.Now()
-	IoriAuthID.HttpOnly = true
-	http.SetCookie(u.Writer, IoriAuthID)
-
 	_, err := u.Server.DB.Exec("DELETE FROM authentications WHERE `userid`=? AND `token`=?", u.Auth.ID, u.Auth.Token)
 	if err != nil {
 		log.Println(err)
@@ -213,14 +205,6 @@ func (u Users) Login() {
 				IoriAuth.HttpOnly = true
 				http.SetCookie(u.Writer, IoriAuth)
 
-				IoriAuthID := new(http.Cookie)
-				IoriAuthID.Name = "IoriAuthID"
-				IoriAuthID.Value = strconv.FormatInt(id, 10)
-				IoriAuthID.Path = SitePath
-				IoriAuthID.Expires = time.Now().Add(time.Hour * 24 /* 1 day */)
-				IoriAuthID.HttpOnly = true
-				http.SetCookie(u.Writer, IoriAuthID)
-
 				info.Message = "Successfully authenticated."
 
 				u.Server.DB.Exec("UPDATE users SET `lastLoginTime`=? WHERE `id`=?", now, id)
@@ -277,12 +261,12 @@ func (u Users) Salt() {
 	name := u.Request.Form.Get("name")
 
 	var passwordSalt []byte
-	userErr := u.Server.DB.QueryRow("SELECT `passwordSalt` FROM users WHERE `name`=?", name).Scan(&passwordSalt)
-	if userErr != nil && userErr != sql.ErrNoRows {
-		log.Println(userErr)
+	err = u.Server.DB.QueryRow("SELECT `passwordSalt` FROM users WHERE `name`=?", name).Scan(&passwordSalt)
+	if err != nil && err != sql.ErrNoRows {
+		log.Println(err)
 		info.Success = false
 		info.UnknownError = true
-	} else if userErr == sql.ErrNoRows {
+	} else if err == sql.ErrNoRows {
 		info.Success = false
 		info.Message = "Invalid username."
 	} else {

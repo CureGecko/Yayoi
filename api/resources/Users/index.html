@@ -1,4 +1,6 @@
 <span id="authenticated">{{.Authenticated}}</span>
-<span id="id">{{.ID}}</span>
-<span id="name">{{.Name}}</span>
-<span id="level">{{.Level}}</span>
+{{if .Authenticated}}
+<span id="id">{{.User.Id}}</span>
+<span id="name">{{.User.Name}}</span>
+<span id="level">{{.User.Level}}</span>
+{{end}}

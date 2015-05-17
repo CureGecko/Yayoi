@@ -12,6 +12,7 @@ package main
 
 import (
 	"crypto/rand"
+	"net/url"
 	"regexp"
 )
 
@@ -48,4 +49,9 @@ func isHexadecimal(s string) bool {
 //Checks if a string follows email address standards.
 func isEmail(s string) bool {
 	return regexp.MustCompile("^([\\w-]+(?:\\.[\\w-]+)*)@((?:[\\w-]+\\.)*\\w[\\w-]{0,66})\\.([a-z]{2,6}(?:\\.[a-z]{2})?)$").MatchString(s)
+}
+
+//Generates a URL with the correct site path and hostname.
+func genURL(url *url.URL, path string) string {
+	return url.Scheme + "://" + url.Host + SitePath + path
 }

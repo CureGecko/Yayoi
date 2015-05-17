@@ -54,7 +54,7 @@ func (u Users) Process() {
 			fallthrough
 		case "reset":
 			t, _ := template.ParseFiles("resources/Users/signedIn.html")
-			t.Execute(u.Writer, u.Auth.Name)
+			t.Execute(u.Writer, u.Auth.User.Name)
 		default:
 			http.NotFound(u.Writer, u.Request)
 		}
@@ -89,7 +89,7 @@ func (u Users) Logout() {
 	IoriAuth.HttpOnly = true
 	http.SetCookie(u.Writer, IoriAuth)
 
-	_, err := u.Server.DB.Exec("DELETE FROM authentications WHERE `userid`=? AND `token`=?", u.Auth.ID, u.Auth.Token)
+	_, err := u.Server.DBmap.Delete(u.Auth.Authentication)
 	if err != nil {
 		log.Println(err)
 	}
@@ -105,7 +105,7 @@ func (u Users) Login() {
 			UnknownError bool
 			Message      string
 			Verification bool
-			ID           int64
+			ID           uint64
 		}
 		info := Info{true, false, "", false, 0}
 
@@ -113,33 +113,36 @@ func (u Users) Login() {
 		providedPassword := u.Request.Form.Get("password")
 
 		now := time.Now().Unix()
-		remoteAddr := u.Request.RemoteAddr[0 : len(u.Request.RemoteAddr)-2]
+		remoteAddr := u.Request.RemoteAddr[0:strings.Index(u.Request.RemoteAddr, ":")]
 
-		var loginNonce []byte
-		var loginAttempts int64
-		var lastAttempt int64
-		err := u.Server.DB.QueryRow("SELECT `loginNonce`,`loginAttempts`,`lastAttempt` FROM login WHERE `ip`=?", remoteAddr).Scan(&loginNonce, &loginAttempts, &lastAttempt)
-		if err != nil && err != sql.ErrNoRows {
+		var login *Login
+		obj, err := u.Server.DBmap.Get(Login{}, remoteAddr)
+		if err != nil {
 			log.Println(err)
 			info.Success = false
 			info.UnknownError = true
-		} else if err == sql.ErrNoRows {
-			_, err := u.Server.DB.Exec("INSERT INTO login (`ip`,`loginNonce`,`loginAttempts`,`lastAttempt`) VALUES (?,'',1,?)", remoteAddr, now)
+		} else if obj == nil {
+			login = new(Login)
+			login.Ip = remoteAddr
+			login.LoginAttempts = 1
+			login.LastAttempt = now
+			err := u.Server.DBmap.Insert(login)
 			if err != nil {
 				log.Println(err)
 				info.Success = false
 				info.UnknownError = true
 			}
 		} else {
-			if lastAttempt < now-(60*30) /* 30 minutes */ {
-				loginAttempts = 0
+			login = obj.(*Login)
+			if login.LastAttempt < now-(60*30) /* 30 minutes */ {
+				login.LoginAttempts = 0
 			}
-			if loginAttempts >= 5 {
+			if login.LoginAttempts >= 5 {
 				info.Success = false
 				info.Message = "Too many login attempts within 30."
 			}
-			loginAttempts++
-			_, err := u.Server.DB.Exec("UPDATE login SET `loginNonce`='',`loginAttempts`=?,`lastAttempt`=? WHERE `ip`=?", loginAttempts, now, remoteAddr)
+			login.LoginAttempts++
+			_, err := u.Server.DBmap.Update(login)
 			if err != nil {
 				log.Println(err)
 				info.Success = false
@@ -147,13 +150,9 @@ func (u Users) Login() {
 			}
 		}
 
-		var id int64
-		var password []byte
-		var passwordSalt []byte
-		var signupKey string
-		var apiKey string
+		var user User
 		if info.Success {
-			err := u.Server.DB.QueryRow("SELECT `id`,`password`,`passwordSalt`,`signupKey`,`apiKey` FROM users WHERE `name`=?", name).Scan(&id, &password, &passwordSalt, &signupKey, &apiKey)
+			err = u.Server.DBmap.SelectOne(&user, "SELECT * FROM users WHERE `name`=?", name)
 			if err != nil && err != sql.ErrNoRows {
 				log.Println(err)
 				info.Success = false
@@ -161,29 +160,28 @@ func (u Users) Login() {
 			} else if err == sql.ErrNoRows {
 				info.Success = false
 				info.Message = "Invalid username/password."
-			} else if len(signupKey) != 0 {
+			} else if len(user.SignupKey) != 0 {
 				info.Success = false
 				info.Verification = true
-				info.ID = id
+				info.ID = user.Id
 			} else {
 				if isHexadecimal(providedPassword) && len(providedPassword) == 128 {
-					hash := fmt.Sprintf("%x", sha512.Sum512(append(password, loginNonce...)))
+					hash := fmt.Sprintf("%x", sha512.Sum512(append(user.Password, login.LoginNonce...)))
 
 					if !strings.EqualFold(hash, providedPassword) {
 						info.Success = false
 						info.Message = "Invalid username/password."
 					}
 				} else {
-					hash, err := scrypt.Key([]byte(providedPassword), passwordSalt, 16384, 8, 1, 64)
+					hash, err := scrypt.Key([]byte(providedPassword), user.PasswordSalt, 16384, 8, 1, 64)
 					if err != nil {
 						fmt.Println(err)
 						info.Success = false
 						info.UnknownError = true
-					} else if hex.EncodeToString(hash) != hex.EncodeToString(password) {
+					} else if hex.EncodeToString(hash) != hex.EncodeToString(user.Password) {
 						info.Success = false
 						info.Message = "Invalid username/password."
 					}
-
 				}
 			}
 		}
@@ -191,7 +189,13 @@ func (u Users) Login() {
 		if info.Success {
 			token := randomString(30)
 
-			_, err := u.Server.DB.Exec("INSERT INTO authentications (`userID`,`ip`,`token`,`time`,`expires`) VALUES (?,?,?,?,?)", id, remoteAddr, token, now, now+(60*60*24) /* 1 day */)
+			authentication := new(Authentication)
+			authentication.Token = token
+			authentication.UserID = user.Id
+			authentication.Ip = remoteAddr
+			authentication.Time = now
+			authentication.Expires = now + (60 * 60 * 24) /* 1 day */
+			err = u.Server.DBmap.Insert(authentication)
 			if err != nil {
 				log.Println(err)
 				info.Success = false
@@ -207,7 +211,8 @@ func (u Users) Login() {
 
 				info.Message = "Successfully authenticated."
 
-				u.Server.DB.Exec("UPDATE users SET `lastLoginTime`=? WHERE `id`=?", now, id)
+				user.LastLoginTime = now
+				u.Server.DBmap.Update(&user)
 			}
 		}
 
@@ -234,23 +239,29 @@ func (u Users) Salt() {
 	info := Info{true, false, "", nonce, ""}
 
 	now := time.Now().Unix()
-	remoteAddr := u.Request.RemoteAddr[0 : len(u.Request.RemoteAddr)-2]
+	remoteAddr := u.Request.RemoteAddr[0:strings.Index(u.Request.RemoteAddr, ":")]
 
-	var loginAttempts int
-	err := u.Server.DB.QueryRow("SELECT `loginAttempts` FROM login WHERE `ip`=?", remoteAddr).Scan(&loginAttempts)
-	if err != nil && err != sql.ErrNoRows {
+	var login *Login
+	obj, err := u.Server.DBmap.Get(Login{}, remoteAddr)
+	if err != nil {
 		log.Println(err)
 		info.Success = false
 		info.UnknownError = true
-	} else if err == sql.ErrNoRows {
-		_, err := u.Server.DB.Exec("INSERT INTO login (`ip`,`loginNonce`,`loginAttempts`,`lastAttempt`) VALUES (?,?,0,?)", remoteAddr, b, now)
+	} else if obj == nil {
+		login = new(Login)
+		login.Ip = remoteAddr
+		login.LoginNonce = b
+		login.LastAttempt = now
+		err := u.Server.DBmap.Insert(login)
 		if err != nil {
 			log.Println(err)
 			info.Success = false
 			info.UnknownError = true
 		}
 	} else {
-		_, err := u.Server.DB.Exec("UPDATE login SET `loginNonce`=? WHERE `ip`=?", b, remoteAddr)
+		login = obj.(*Login)
+		login.LoginNonce = b
+		_, err := u.Server.DBmap.Update(login)
 		if err != nil {
 			log.Println(err)
 			info.Success = false
@@ -260,8 +271,8 @@ func (u Users) Salt() {
 
 	name := u.Request.Form.Get("name")
 
-	var passwordSalt []byte
-	err = u.Server.DB.QueryRow("SELECT `passwordSalt` FROM users WHERE `name`=?", name).Scan(&passwordSalt)
+	var user User
+	err = u.Server.DBmap.SelectOne(&user, "SELECT * FROM users WHERE `name`=?", name)
 	if err != nil && err != sql.ErrNoRows {
 		log.Println(err)
 		info.Success = false
@@ -270,7 +281,7 @@ func (u Users) Salt() {
 		info.Success = false
 		info.Message = "Invalid username."
 	} else {
-		info.Salt = hex.EncodeToString(passwordSalt)
+		info.Salt = hex.EncodeToString(user.PasswordSalt)
 	}
 
 	t, _ := template.ParseFiles("resources/Users/salt.html")
@@ -316,8 +327,8 @@ func (u Users) Signup() {
 			info.Message += "Invalid name provided."
 		}
 		if info.Success {
-			var id int64
-			err := u.Server.DB.QueryRow("SELECT `id` FROM users WHERE `email`=?", email).Scan(&id)
+			var user User
+			err := u.Server.DBmap.SelectOne(&user, "SELECT * FROM users WHERE `email`=?", email)
 			if err != nil && err != sql.ErrNoRows {
 				log.Println(err)
 				info.Success = false
@@ -328,8 +339,8 @@ func (u Users) Signup() {
 			}
 		}
 		if info.Success {
-			var id int64
-			err := u.Server.DB.QueryRow("SELECT `id` FROM users WHERE `name`=?", name).Scan(&id)
+			var user User
+			err := u.Server.DBmap.SelectOne(&user, "SELECT * FROM users WHERE `name`=?", email)
 			if err != nil && err != sql.ErrNoRows {
 				log.Println(err)
 				info.Success = false
@@ -343,41 +354,42 @@ func (u Users) Signup() {
 		if info.Success {
 			signupKey := randomString(30)
 			now := time.Now().Unix()
-			passwordHex, _ := hex.DecodeString(password)
-			passwordSaltHex, _ := hex.DecodeString(passwordSalt)
-			result, err := u.Server.DB.Exec("INSERT INTO users (`name`,`email`,`password`,`passwordSalt`,`signupKey`,`joinTime`) VALUES (?,?,?,?,?,?)", name, email, passwordHex, passwordSaltHex, signupKey, now)
+			passwordBin, _ := hex.DecodeString(password)
+			passwordSaltBin, _ := hex.DecodeString(passwordSalt)
+
+			user := new(User)
+			user.Name = name
+			user.Email = email
+			user.Password = passwordBin
+			user.PasswordSalt = passwordSaltBin
+			user.SignupKey = signupKey
+			user.JoinTime = now
+			err := u.Server.DBmap.Insert(user)
 			if err != nil {
 				log.Println(err)
 				info.Success = false
 				info.UnknownError = true
 			} else {
-				id, err := result.LastInsertId()
-				if err != nil {
-					log.Println(err)
+				msg := mandrill.NewMessageTo(email, name)
+				msg.FromEmail = "noreply@yayoi.se"
+				msg.FromName = "Yayoi"
+				msg.Subject = "Verify your email address."
+				msg.Text = "Please verify your email address at " + genURL(u.Request.URL, "users/verify?id="+strconv.FormatUint(user.Id, 10)+"&key="+signupKey)
+				res, err := msg.Send(false)
+				if err != nil || len(res) == 0 {
+					log.Println("Mandrill Error:", err)
 					info.Success = false
-					info.UnknownError = true
+					info.Message = "There was an error sending an email."
+					u.Server.DBmap.Delete(user)
+					u.Server.DBmap.Exec("ALTER TABLE users AUTO_INCREMENT=?", user.Id)
+				} else if res[0].Status != "sent" {
+					log.Println("Result", res[0].Status, res[0].RejectionReason, res[0].Id)
+					info.Success = false
+					info.Message = "There was an error sending an email."
+					u.Server.DBmap.Delete(user)
+					u.Server.DBmap.Exec("ALTER TABLE users AUTO_INCREMENT=?", user.Id)
 				} else {
-					msg := mandrill.NewMessageTo(email, name)
-					msg.FromEmail = "noreply@yayoi.se"
-					msg.FromName = "Yayoi"
-					msg.Subject = "Verify your email address."
-					msg.Text = "Please verify your email address at http://127.0.0.1/users/verify?id=" + strconv.FormatInt(id, 10) + "&key=" + signupKey
-					res, err := msg.Send(false)
-					if err != nil || len(res) == 0 {
-						log.Println("Mandrill Error:", err)
-						info.Success = false
-						info.Message = "There was an error sending an email."
-						u.Server.DB.Exec("DELETE FROM users WHERE `id`=?", id)
-						u.Server.DB.Exec("ALTER TABLE users AUTO_INCREMENT=?", id)
-					} else if res[0].Status != "sent" {
-						log.Println("Result", res[0].Status, res[0].RejectionReason, res[0].Id)
-						info.Success = false
-						info.Message = "There was an error sending an email."
-						u.Server.DB.Exec("DELETE FROM users WHERE `id`=?", id)
-						u.Server.DB.Exec("ALTER TABLE users AUTO_INCREMENT=?", id)
-					} else {
-						info.Message = "Sucessfully created account. Check your email for an activation link."
-					}
+					info.Message = "Sucessfully created account. Check your email for an activation link."
 				}
 			}
 		}
@@ -410,8 +422,8 @@ func (u Users) Available() {
 	email := u.Request.Form.Get("email")
 
 	if email != "" {
-		var id int64
-		err := u.Server.DB.QueryRow("SELECT `id` FROM users WHERE `email`=?", email).Scan(&id)
+		var user User
+		err := u.Server.DBmap.SelectOne(&user, "SELECT * FROM users WHERE `email`=?", email)
 		if err != nil && err != sql.ErrNoRows {
 			log.Println(err)
 			info.EmailAvailable = false
@@ -425,8 +437,8 @@ func (u Users) Available() {
 	}
 
 	if name != "" {
-		var id int64
-		err := u.Server.DB.QueryRow("SELECT `id` FROM users WHERE `name`=?", name).Scan(&id)
+		var user User
+		err := u.Server.DBmap.SelectOne(&user, "SELECT * FROM users WHERE `email`=?", email)
 		if err != nil && err != sql.ErrNoRows {
 			log.Println(err)
 			info.NameAvailable = false
@@ -459,26 +471,24 @@ func (u Users) Verify() {
 	userID := u.Request.Form.Get("id")
 	signupKey := u.Request.Form.Get("key")
 	if u.Request.Form["resend"] != nil && userID != "" {
-		var email string
-		var name string
-		var signupKey string
-		err := u.Server.DB.QueryRow("SELECT `id`,`password`,`passwordSalt`,`signupKey`,`apiKey` FROM users WHERE `name`=?", name).Scan(&email, &name, &signupKey)
+		obj, err := u.Server.DBmap.Get(User{}, userID)
 		if err != nil && err != sql.ErrNoRows {
 			log.Println(err)
 			info.Success = false
 			info.Reason = "There was an unexpected error."
-		} else if err == sql.ErrNoRows {
+		} else if obj == nil {
 			info.Success = false
 			info.Reason = "There is no account for this id."
-		} else if len(signupKey) == 0 {
+		} else if len(obj.(*User).SignupKey) == 0 {
 			info.Success = false
 			info.Reason = "This account is already verified."
 		} else {
-			msg := mandrill.NewMessageTo(email, name)
+			user := obj.(*User)
+			msg := mandrill.NewMessageTo(user.Email, user.Name)
 			msg.FromEmail = "noreply@yayoi.se"
 			msg.FromName = "Yayoi"
 			msg.Subject = "Verify your email address."
-			msg.Text = "Please verify your email address at http://127.0.0.1/users/verify?id=" + userID + "&key=" + signupKey
+			msg.Text = "Please verify your email address at " + genURL(u.Request.URL, "users/verify?id="+strconv.FormatUint(user.Id, 10)+"&key="+user.SignupKey)
 			res, err := msg.Send(false)
 			if err != nil || len(res) == 0 {
 				log.Println("Mandrill Error:", err)
@@ -491,29 +501,29 @@ func (u Users) Verify() {
 			} else {
 				//Yes. Printing the email address can be exploited, but people will usually validate very quickly.
 				info.VerificationResent = true
-				info.Email = email
-				info.Name = name
+				info.Email = user.Email
+				info.Name = user.Name
 			}
 		}
 	} else if userID == "" || signupKey == "" {
 		info.Success = false
 		info.Reason = "Invalid request."
 	} else {
-		var id int64
-		var name string
-		err := u.Server.DB.QueryRow("SELECT `id`,`name` FROM users WHERE `id`=? AND `signupKey`=?", userID, signupKey).Scan(&id, &name)
+		var user User
+		err := u.Server.DBmap.SelectOne(&user, "SELECT * FROM users WHERE `id`=? AND `SignupKey`=?", userID, signupKey)
 		if err != nil {
 			log.Println(err)
 			info.Success = false
 			info.Reason = "No user found to verify. The user may already have been verified."
 		} else {
-			_, err := u.Server.DB.Exec("UPDATE users SET `signupKey`='' WHERE `id`=?", id)
+			user.SignupKey = ""
+			_, err = u.Server.DBmap.Update(&user)
 			if err != nil {
 				log.Println(err)
 				info.Success = false
 				info.Reason = "There was an unexpected error."
 			} else {
-				info.Name = name
+				info.Name = user.Name
 			}
 		}
 	}
@@ -533,28 +543,27 @@ func (u Users) Forgot() {
 
 		email := u.Request.Form.Get("email")
 
-		var id int64
-		var name string
-		err := u.Server.DB.QueryRow("SELECT `id`,`name` FROM users WHERE `email`=? AND `signupKey`=''", email).Scan(&id, &name)
+		var user User
+		err := u.Server.DBmap.SelectOne(&user, "SELECT * FROM users WHERE `email`=? AND `signupKey`=''", email)
 		if err != nil {
 			log.Println(err)
 			info.Success = false
 			info.Message = "There is no user registered with this email address."
 		} else {
-			resetKey := randomString(30)
-			now := time.Now().Unix()
+			user.ResetKey = randomString(30)
+			user.ResetRequestTime = time.Now().Unix()
 
-			_, err := u.Server.DB.Exec("UPDATE users SET `resetKey`=?, `resetRequestTime`=? WHERE id=?", resetKey, now, id)
+			_, err = u.Server.DBmap.Update(&user)
 			if err != nil {
 				log.Println(err)
 				info.Success = false
 				info.UnknownError = true
 			} else {
-				msg := mandrill.NewMessageTo(email, name)
+				msg := mandrill.NewMessageTo(user.Email, user.Name)
 				msg.FromEmail = "noreply@yayoi.se"
 				msg.FromName = "Yayoi"
 				msg.Subject = "Password reset."
-				msg.Text = "To reet your password, click the following link http://127.0.0.1/users/reset?id=" + strconv.FormatInt(id, 10) + "&key=" + resetKey
+				msg.Text = "To reet your password, click the following link " + genURL(u.Request.URL, "users/reset?id="+strconv.FormatUint(user.Id, 10)+"&key="+user.ResetKey)
 				res, err := msg.Send(false)
 				if err != nil || len(res) == 0 {
 					log.Println("Mandrill Error:", err)
@@ -614,10 +623,9 @@ func (u Users) Reset() {
 			info.Message += "Invalid password provided."
 		}
 
-		var id int64
-		var name string
+		var user User
 		if info.Success {
-			err := u.Server.DB.QueryRow("SELECT `id`,`name` FROM users WHERE `id`=? AND `resetKey`=?", userID, resetKey).Scan(&id, &name)
+			err := u.Server.DBmap.SelectOne(&user, "SELECT * FROM users WHERE `id`=? AND `resetKey`=?", userID, resetKey)
 			if err != nil {
 				log.Println(err)
 				info.Success = false
@@ -626,15 +634,20 @@ func (u Users) Reset() {
 		}
 
 		if info.Success {
-			passwordHex, _ := hex.DecodeString(password)
-			passwordSaltHex, _ := hex.DecodeString(passwordSalt)
-			_, err := u.Server.DB.Exec("UPDATE users SET `resetKey`='',`resetRequestTime`=0,`password`=?,`passwordSalt`=? WHERE id=?", passwordHex, passwordSaltHex, id)
+			passwordBin, _ := hex.DecodeString(password)
+			passwordSaltBin, _ := hex.DecodeString(passwordSalt)
+
+			user.Password = passwordBin
+			user.PasswordSalt = passwordSaltBin
+			user.ResetKey = ""
+			user.ResetRequestTime = 0
+			_, err := u.Server.DBmap.Update(&user)
 			if err != nil {
 				log.Println(err)
 				info.Success = false
 				info.Message = "Unexpected error occured."
 			} else {
-				info.Message = "Successfully reset password for " + name + "."
+				info.Message = "Successfully reset password for " + user.Name + "."
 			}
 		}
 
@@ -645,7 +658,7 @@ func (u Users) Reset() {
 			Success      bool
 			Reason       string
 			Name         string
-			UserID       int64
+			UserID       uint64
 			ResetKey     string
 			PasswordSalt string
 		}
@@ -661,24 +674,16 @@ func (u Users) Reset() {
 			info.Success = false
 			info.Reason = "Invalid request."
 		} else {
-			var id int64
-			var name string
-			err := u.Server.DB.QueryRow("SELECT `id`,`name` FROM users WHERE `id`=? AND `resetKey`=?", userID, resetKey).Scan(&id, &name)
+			var user User
+			err := u.Server.DBmap.SelectOne(&user, "SELECT * FROM users WHERE `id`=? AND `resetKey`=?", userID, resetKey)
 			if err != nil {
 				log.Println(err)
 				info.Success = false
 				info.Reason = "No user found to reset or incorrect reset key."
 			} else {
-				_, err := u.Server.DB.Exec("UPDATE users SET `signupKey`='' WHERE `id`=?", id)
-				if err != nil {
-					log.Println(err)
-					info.Success = false
-					info.Reason = "There was an unexpected error."
-				} else {
-					info.Name = name
-					info.UserID = id
-					info.ResetKey = resetKey
-				}
+				info.Name = user.Name
+				info.UserID = user.Id
+				info.ResetKey = user.ResetKey
 			}
 		}
 

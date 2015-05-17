@@ -11,10 +11,10 @@ Main server and request processor for Yayoi's API.
 package main
 
 import (
-	"database/sql"
 	"fmt"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/mostafah/mandrill"
+	"gopkg.in/gorp.v1"
 	"log"
 	"net"
 	"net/http"
@@ -35,7 +35,7 @@ const dbName string = "yayoi"
 
 //Main server structure for dealing with requests via FCGI. Name is Inori for a reason. Just think about it.
 type Iori struct {
-	DB *sql.DB
+	DBmap *gorp.DbMap
 }
 
 /*
@@ -79,13 +79,11 @@ The main function of the program.
 Starts up the FCGI server on port specified and adds the request processer above as the handler.
 */
 func main() {
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
+
 	//Connect to MySQL Database.
-	db, err := sql.Open("mysql", dbUser+":"+dbPassword+"@/"+dbName)
-	if err != nil {
-		log.Fatal(err)
-	}
-	//Close when the program closes.
-	defer db.Close()
+	dbmap := initDb()
+	defer dbmap.Db.Close()
 
 	//API Key for Mandrill
 	mandrill.Key = "API-Key"
@@ -96,7 +94,7 @@ func main() {
 
 	//Setup FCGI Server
 	iori := new(Iori)
-	iori.DB = db
+	iori.DBmap = dbmap
 	tcp, err := net.Listen("tcp", ":9001")
 	if err != nil {
 		log.Fatal(err)

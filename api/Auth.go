@@ -10,26 +10,24 @@ Manages user authentication.
 package main
 
 import (
-	"database/sql"
 	"log"
 	"net/http"
 	"time"
 )
 
 type Auth struct {
-	Server        *Iori
-	Writer        http.ResponseWriter
-	Request       *http.Request
-	Authenticated bool
-	ID            int64
-	Token         string
-	Name          string
-	Level         uint
+	Server         *Iori
+	Writer         http.ResponseWriter
+	Request        *http.Request
+	Authenticated  bool
+	Authentication *Authentication
+	User           *User
 }
 
 func (a *Auth) Validate() {
 	a.Authenticated = false
 	now := time.Now().Unix()
+
 	var token string
 	for _, cookie := range a.Request.Cookies() {
 		if cookie.Name == "IoriAuth" {
@@ -37,43 +35,42 @@ func (a *Auth) Validate() {
 		}
 	}
 
-	var id int64
-	var ip string
-	var expires int64
-	err := a.Server.DB.QueryRow("SELECT `userID`,`ip`,`expires` FROM authentications WHERE `token`=? AND `expires`>=?", token, now).Scan(&id, &ip, &expires)
-	if err != nil && err != sql.ErrNoRows {
-		log.Println("Auth:", err)
-		return
-	} else if err == sql.ErrNoRows {
+	obj, err := a.Server.DBmap.Get(Authentication{}, token)
+	if err != nil {
+		log.Println(err)
 		return
 	}
-	var name string
-	var level uint
-	err = a.Server.DB.QueryRow("SELECT `name`,`level` FROM users WHERE `id`=?", id).Scan(&name, &level)
-	if err != nil && err != sql.ErrNoRows {
-		log.Println("Auth:", err)
-		return
-	} else if err == sql.ErrNoRows {
+	if obj == nil {
 		return
 	}
-	a.Authenticated = true
-	a.ID = id
-	a.Token = token
-	a.Name = name
-	a.Level = level
+	authentication := obj.(*Authentication)
 
-	if expires <= now+(60*10) /* 10 minutes */ {
-		newToken := randomString(30)
-		_, err := a.Server.DB.Exec("UPDATE authentications SET `token`=?, `expires`=? WHERE `token`=?", newToken, now+(60*60*24) /* 1 day */, token)
-		if err != nil {
-			log.Println("Auth:", err)
+	obj, err = a.Server.DBmap.Get(User{}, authentication.UserID)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	if obj == nil {
+		return
+	}
+	user := obj.(*User)
+
+	a.Authenticated = true
+	a.Authentication = authentication
+	a.User = user
+
+	if authentication.Expires <= now+(60*10) /* 10 minutes */ {
+		authentication.Token = randomString(30)
+		authentication.Expires = now + (60 * 60 * 24) /* 1day */
+		_, err := a.Server.DBmap.Update(authentication)
+		if err == nil {
+			log.Println(err)
 			return
 		}
-		a.Token = newToken
 
 		IoriAuth := new(http.Cookie)
 		IoriAuth.Name = "IoriAuth"
-		IoriAuth.Value = newToken
+		IoriAuth.Value = authentication.Token
 		IoriAuth.Path = SitePath
 		IoriAuth.Expires = time.Now().Add(time.Hour * 24 /* 1 day */)
 		IoriAuth.HttpOnly = true

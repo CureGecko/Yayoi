@@ -1,5 +1,5 @@
 /*
-main.go
+Iori.go
 Yayoi
 
 Created by Cure Gecko on 5/10/15.
@@ -33,7 +33,7 @@ const dbUser string = "root"
 const dbPassword string = "password"
 const dbName string = "yayoi"
 
-//Main server structure for dealing with requests via FCGI. Name is Inori for a reason. Just think about it.
+//Main server structure for dealing with requests via FCGI.
 type Iori struct {
 	DBmap *gorp.DbMap
 }
@@ -44,6 +44,9 @@ Every processing structure should accept Server, Writer, Request, Path, and User
 This function is called by the FCGI listener.
 */
 func (s *Iori) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
+	//Set Iori Header
+	writer.Header().Set("Iori", "The backend of Yayoi.")
+
 	//Form data is not parsed automatically, we need to parse it so we can determine parameters passed in the request.
 	request.ParseForm()
 

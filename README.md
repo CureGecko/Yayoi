@@ -6,6 +6,11 @@ To run go code, use the following within the API folder.
 go run *.go
 ```
 
+You can build for production with the following command.
+```
+go build -o Iori *.go
+```
+
 Nginx config is like so.
 ```
 location / {

@@ -1,0 +1,138 @@
+<style type="text/css">
+#uploadPanel {
+	max-width: 400px;
+	margin: 0 auto;
+}
+#progress {
+	width: 100%;
+}
+</style>
+<span id="apiLoader"></span>
+<div class="panel panel-default" id="uploadPanel">
+	<div class="panel-heading">
+		<h3 class="panel-title">Upload</h3>
+	</div>
+	<div class="panel-body">
+		{{if .}}
+		You must be logged in to upload.
+		{{else}}
+		<span id="earlyWarnings"></span>
+		<form id="uploadForm">
+			<input type="file" multiple="true" id="files" />
+			<input class="btn btn-primary" type="submit" value="Upload" id="uploadButton" />
+		</form>
+		<span class="hide" id="uploadResponse"></span>
+		<span id="status"></span>
+		<progress id="progress"></progress>
+		{{end}}
+	</div>
+</div>
+{{if .}}{{else}}
+<script type="text/javascript">
+	var allowedExtensions = ["tif","tiff","gif","jpeg","jpg","png","bmp","svg","webp"];
+	var files = $("#files")[0].files;
+	var fileIndex = 0;
+
+	$("#files").change(function(event) {
+		var warnings = "";
+		for (var i = 0; i<files.length; i++) {
+			var file = files[i];
+			var extension = file.name.substr(file.name.lastIndexOf(".")+1).toLowerCase();
+			if (allowedExtensions.indexOf(extension)==-1) {
+				warnings += "The file with an extension of "+extension+" is not supported.\n";
+			}
+			if (extension=="webp") {
+				warnings += "Only blink (chrome/opera) browsers supports webp.\n";
+			}
+		}
+		$("#earlyWarnings").text(warnings);
+	});
+
+	function updateUploadProgress(event) {
+		if (event.lengthComputable) {
+			$("#progress").attr({value:event.loaded, max:event.total});
+		}
+	}
+
+	function addHeadersToUpload(xhr) {
+		var file = files[fileIndex];
+		xhr.setRequestHeader("fileName", file.name);
+	}
+
+	function uploadSuccessful(data, textStatus, xhr) {
+		$("#uploadResponse").html(data);
+		if ($("#uploadResponse #success").text()=="false") {
+			var file = files[fileIndex];
+			$("#status").text("An error occured uploading: "+file.name+": "+$("#uploadResponse #reason").text());
+			setTimeout(function() {
+				fileIndex++;
+				sendNextFile();
+			}, 2000);
+		} else {
+			fileIndex++;
+			sendNextFile();
+		}
+	}
+
+	function uploadErrored(event) {
+		var file = files[fileIndex];
+		$("#status").text("An error occured uploading: "+file.name);
+		setTimeout(function() {
+			fileIndex++;
+			sendNextFile();
+		}, 2000);
+	}
+
+	function sendNextFile() {
+		if (fileIndex<files.length) {
+			var file = files[fileIndex];
+			if (file.name==undefined) {
+				$("#status").text("Unsuported Browser");
+				return;
+			}
+			var extension = file.name.substr(file.name.lastIndexOf(".")+1).toLowerCase();
+			if (allowedExtensions.indexOf(extension)!=-1) {
+				$("#status").text("Uploading "+(fileIndex+1)+" of "+files.length+" files.");
+				console.log(file);
+
+				//var formData = new FormData(file);
+			    $.ajax({
+					url: APIPath+"uploads/add",
+					type: "POST",
+					xhr: function() {
+						var thisXhr = $.ajaxSettings.xhr();
+						if(thisXhr.upload) {
+							thisXhr.upload.addEventListener("progress", updateUploadProgress, false);
+						}
+						return thisXhr;
+					},
+
+					beforeSend: addHeadersToUpload,
+					success: uploadSuccessful,
+					error: uploadErrored,
+
+					data: file,
+
+					cache: false,
+					contentType: false,
+					processData: false
+				});
+			} else {
+				$("#status").text("Extension not allowed: "+extension);
+				setTimeout(function() {
+					fileIndex++;
+					sendNextFile();
+				}, 2000);
+			}
+		} else {
+			$("#status").text("Upload complete!");
+			loadPage("uploads/submit");
+		}
+	}
+	$("#uploadForm").submit(function(event) {
+		fileIndex = 0;
+		sendNextFile();
+		event.preventDefault();
+	});
+</script>
+{{end}}

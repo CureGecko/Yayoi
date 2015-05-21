@@ -1,0 +1,11 @@
+<span id="success">{{.Success}}</span>
+{{if .Success}}
+<span id="post">{{.Response.Post}}</span>
+<span id="authorName">{{.Response.AuthorName}}</span>
+<span id="authorURL">{{.Response.AuthorURL}}</span>
+<span id="images">
+{{range .Response.Images}}
+	<span class="image">{{.}}</span>
+{{end}}
+</span>
+{{end}}

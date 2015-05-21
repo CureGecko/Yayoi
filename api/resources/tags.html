@@ -1,0 +1,10 @@
+<span id="success">{{.Success}}</span>
+<span id="tags">
+{{range .Tags}}
+	<span class="tag">
+		<span class="id">{{.Id}}</span>
+		<span class="value">{{.Value}}</span>
+		<span class="alias">{{.Alias}}</span>
+	</span>
+{{end}}
+</span>

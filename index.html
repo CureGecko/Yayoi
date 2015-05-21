@@ -22,6 +22,11 @@
 </head>
 
 <body>
+	<span id="tagAutoCompleteAPI" class="hide"></span>
+	<div id="tagAutoComplete">
+		<ul>
+		</ul>
+	</div>
 	<span class="hide" id="userInfo"></span>
 	<nav class="navbar navbar-default navbar-fixed-top">
 	      <div class="container">
@@ -39,10 +44,266 @@
 	            <li><a href="#" id="loadRandom">Random</a></li>
 	            <li><a href="#" id="loadAPI">API</a></li>
 	            <li id="loginMenu"><a href="#" id="loadLogin">Login</a></li>
+	            <li style="display: none;" id="uploadMenu"><a href="#" id="loadUpload">Upload</a></li>
 	            <li style="display: none;" id="logoutMenu"><a href="#" id="loadLogout">Logout</a></li>
 	          </ul>
+	          <form class="navbar-form navbar-right" role="form" id="search_form" action="">
+					<input type="hidden" id="searchWidth" name="w" value="" />
+					<input type="hidden" id="search_width_constraint" name="wc" value="" />
+					<input type="hidden" id="searchHeight" name="h" value="" />
+					<input type="hidden" id="search_height_constraint" name="hc" value="" />
+					<input type="hidden" id="searchAspect" name="a" value="" />
+					<input type="hidden" id="search_aspect_constraint" name="ac" value="" />
+					<input type="hidden" id="search_order" name="o" value="" />
+
+					<div class="input-group" style="width:500px;">
+						<span class="input-group-btn">
+							<button class="btn btn-default" type="button" id="advancedFilterButton">+</button>
+						</span>
+						<span class="input-group-btn" id="search_filter_main">
+							<input type="hidden" id="search_filter" name="f" value="s" />
+							<button type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown"><span class="value" id="search_filter_value">Safe</span> <span class="caret"></span></button>
+							<ul class="dropdown-menu">
+								<li><a value="s">Safe</a></li>
+								<li><a value="q">Questionable</a></li>
+								<li><a value="e">Explicit</a></li>
+								<li class="divider"></li>
+								<li><a value="a">Any</a></li>
+							</ul>
+						</span>
+						<input class="form-control search-query" type="text" placeholder="Query" id="search_field" name="q" tabindex="1" value="" autocomplete="off" />
+						<span class="input-group-btn">
+							<button class="btn btn-default" id="search_button" type="submit">Search</button>
+						</span>
+						<script type="text/javascript">
+						$("#advancedFilterButton").click(function() {
+							if ($("#advancedFilter").is(":visible")) {
+								$("#advancedFilter").hide(600);
+								$("body").animate({"padding-top": "60px"}, 600);
+							} else {
+								$("#advancedFilter").show(600);
+								$("body").animate({"padding-top": "105px"}, 600);
+							}
+						});
+						
+						function updateFilter() {
+							var filter = $("#search_filter").val();
+							if (filter=="s") {
+								$("#search_filter_value").text("Safe");
+							} else if (filter=="q") {
+								$("#search_filter_value").text("Questionable");
+							} else if (filter=="e") {
+								$("#search_filter_value").text("Explicit");
+							} else if (filter=="a") {
+								$("#search_filter_value").text("Any");
+							}
+						}
+						$("#search_filter_main .dropdown-menu a").click(function() {
+							$("#search_filter").val($(this).attr("value"));
+							var d = new Date();
+						    d.setTime(d.getTime() + (20*365*24*60*60*1000));
+							document.cookie="rfilter="+$(this).attr("value")+"; expires="+d.toUTCString();
+							updateFilter();
+						});
+						</script>
+					</div>
+				</form>
 	        </div><!--/.nav-collapse -->
 	      </div>
+	      <div class="container" id="advancedFilter" style="display:none; padding: 5px 15px;">
+
+			<div class="input-group navbar-right" style="width:150px;">
+				<span class="input-group-addon">Order</span>
+				<span class="input-group-btn" id="search_order_main">
+					<button type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown"><span class="value" id="search_order_value">Date desc</span> <span class="caret"></span></button>
+					<ul class="dropdown-menu">
+						<li><a value="r">Random</a></li>
+						<li><a value="n">No order</a></li>
+						<li><a value="aa">Aspect asc</a></li>
+						<li><a value="a">Aspect desc</a></li>
+						<li><a value="wa">Width asc</a></li>
+						<li><a value="w">Width desc</a></li>
+						<li><a value="ha">Height asc</a></li>
+						<li><a value="h">Height desc</a></li>
+						<li><a value="da">Date asc</a></li>
+						<li><a value="d">Date desc</a></li>
+					</ul>
+				</span>
+				<script type="text/javascript">
+				function updateOrder() {
+					var order = $("#search_order").val();
+					if (order=="r") {
+						$("#search_order_value").text("Random");
+					} else if (order=="n") {
+						$("#search_order_value").text("No order");
+					} else if (order=="aa") {
+						$("#search_order_value").text("Aspect asc");
+					} else if (order=="a") {
+						$("#search_order_value").text("Aspect desc");
+					} else if (order=="wa") {
+						$("#search_order_value").text("Width asc");
+					} else if (order=="w") {
+						$("#search_order_value").text("Width desc");
+					} else if (order=="ha") {
+						$("#search_order_value").text("Height asc");
+					} else if (order=="h") {
+						$("#search_order_value").text("Height desc");
+					} else if (order=="da") {
+						$("#search_order_value").text("Date asc");
+					} else if (order=="d") {
+						$("#search_order_value").text("Date desc");
+					}
+				}
+				$("#search_order_main .dropdown-menu a").click(function() {
+					$("#search_order").val($(this).attr("value"));
+					updateOrder();
+				});
+				</script>
+			</div>
+			<div class="input-group navbar-right" style="width:260px;">
+				<span class="input-group-addon">Aspect</span>
+				<input class="form-control hide" type="text" id="searchAspectConstraintField" style="width: 62px;" value="" />
+				<span class="input-group-btn" id="search_aspect_constraint_main">
+					<button type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown"><span class="value" id="search_aspect_constraint_value">equal to</span> <span class="caret"></span></button>
+					<ul class="dropdown-menu">
+						<li><a value="e">equal to</a></li>
+						<li><a value="ct">close to</a></li>
+						<li><a value="0.1">custom</a></li>
+					</ul>
+				</span>
+				<input class="form-control" type="text" id="searchAspectField" tabindex="4" value="" />
+				<script type="text/javascript">
+				function updateAspectConstraint() {
+					var aspectConstraint = $("#search_aspect_constraint").val();
+					if (aspectConstraint!="e" && aspectConstraint!="ct") {
+						if ($("#search_aspect_constraint_main").is(":visible")) {
+							$("#search_aspect_constraint_main").addClass("hide");
+							$("#searchAspectConstraintField").removeClass("hide");
+							$("#searchAspectField").css("width", "129px");
+						}
+						$("#searchAspectConstraintField").val(aspectConstraint);
+					} else {
+						if ($("#searchAspectConstraintField").is(":visible")) {
+							$("#searchAspectConstraintField").addClass("hide");
+							$("#search_aspect_constraint_main").removeClass("hide");
+							$("#searchAspectField").css("width", "");
+						}
+						if (aspectConstraint=="e") {
+							$("#search_aspect_constraint_value").text("equal to");
+						} else if (aspectConstraint=="ct") {
+							$("#search_aspect_constraint_value").text("close to");
+						}
+					}
+				}
+				$("#search_aspect_constraint_main .dropdown-menu a").click(function() {
+					$("#search_aspect_constraint").val($(this).attr("value"));
+					updateAspectConstraint();
+				});
+				$("#searchAspectField").change(function() {
+					$("#searchAspect").val($("#searchAspectField").val());
+				});
+				$("#searchAspectConstraintField").change(function() {
+					$("#search_aspect_constraint").val($("#searchAspectConstraintField").val());
+					updateAspectConstraint();
+				});
+				$("#searchAspectField").keyup(function(event){
+				    if (event.keyCode==13){
+						$("#searchAspect").val($("#searchAspectField").val());
+				        $("#search_button").click();
+				    }
+				});
+				$(document).ready(function() {
+					updateAspectConstraint();
+				});
+				</script>
+			</div>
+			<div class="input-group navbar-right" style="width:240px;">
+				<span class="input-group-addon">Height</span>
+				<span class="input-group-btn" id="search_height_constraint_main">
+					<button type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown"><span class="value" id="search_height_constraint_value">equal to</span> <span class="caret"></span></button>
+					<ul class="dropdown-menu">
+						<li><a value="e">equal to</a></li>
+						<li><a value="lte">less than eq</a></li>
+						<li><a value="lt">less than</a></li>
+						<li><a value="gte">greater than eq</a></li>
+						<li><a value="gt">greater than</a></li>
+					</ul>
+				</span>
+				<input class="form-control" type="text" id="searchHeightField" tabindex="3" value="" />
+				<script type="text/javascript">
+				function updateHeightConstraint() {
+					var heightConstraint = $("#search_height_constraint").val();
+					if (heightConstraint=="e") {
+						$("#search_height_constraint_value").text("equal to");
+					} else if (heightConstraint=="lte") {
+						$("#search_height_constraint_value").text("less than eq");
+					} else if (heightConstraint=="lt") {
+						$("#search_height_constraint_value").text("less than");
+					} else if (heightConstraint=="gte") {
+						$("#search_height_constraint_value").text("greater than eq");
+					} else if (heightConstraint=="gt") {
+						$("#search_height_constraint_value").text("greater than");
+					}
+				}
+				$("#search_height_constraint_main .dropdown-menu a").click(function() {
+					$("#search_height_constraint").val($(this).attr("value"));
+					updateHeightConstraint();
+				});
+				$("#searchHeightField").change(function() {
+					$("#searchHeight").val($("#searchHeightField").val());
+				});
+				$("#searchHeightField").keyup(function(event){
+				    if (event.keyCode==13){
+						$("#searchHeight").val($("#searchHeightField").val());
+				        $("#search_button").click();
+				    }
+				});
+				</script>
+			</div>
+			<div class="input-group navbar-right" style="width:240px;">
+				<span class="input-group-addon">Width</span>
+				<span class="input-group-btn" id="search_width_constraint_main">
+					<button type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown"><span class="value" id="search_width_constraint_value">equal to</span> <span class="caret"></span></button>
+					<ul class="dropdown-menu">
+						<li><a value="e">equal to</a></li>
+						<li><a value="lte">less than eq</a></li>
+						<li><a value="lt">less than</a></li>
+						<li><a value="gte">greater than eq</a></li>
+						<li><a value="gt">greater than</a></li>
+					</ul>
+				</span>
+				<input class="form-control" type="text" id="searchWidthField" tabindex="2" value="" />
+				<script type="text/javascript">
+				function updateWidthConstraint() {
+					var widthConstraint = $("#search_width_constraint").val();
+					if (widthConstraint=="e") {
+						$("#search_width_constraint_value").text("equal to");
+					} else if (widthConstraint=="lte") {
+						$("#search_width_constraint_value").text("less than eq");
+					} else if (widthConstraint=="lt") {
+						$("#search_width_constraint_value").text("less than");
+					} else if (widthConstraint=="gte") {
+						$("#search_width_constraint_value").text("greater than eq");
+					} else if (widthConstraint=="gt") {
+						$("#search_width_constraint_value").text("greater than");
+					}
+				}
+				$("#search_width_constraint_main .dropdown-menu a").click(function() {
+					$("#search_width_constraint").val($(this).attr("value"));
+					updateWidthConstraint();
+				});
+				$("#searchWidthField").change(function() {
+					$("#searchWidth").val($("#searchWidthField").val());
+				});
+				$("#searchWidthField").keyup(function(event){
+				    if (event.keyCode==13){
+						$("#searchWidth").val($("#searchWidthField").val());
+				        $("#search_button").click();
+				    }
+				});
+				</script>
+			</div>
+		</div>
 	    </nav>
 
 	    <div class="container" id="mainContainer">

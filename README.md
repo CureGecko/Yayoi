@@ -13,13 +13,31 @@ go build -o Iori *.go
 
 Nginx config is like so.
 ```
-location / {
-    index  index.html index.htm;
-	try_files $uri $uri/ /index.html;
-}
-location /api/ {
-    fastcgi_pass   127.0.0.1:9001;
-    include        fastcgi_params;
+server {
+    listen       [::]:80;
+    listen       80;
+    server_name  localhost default_server;
+
+	client_max_body_size 20m;
+
+	root   /Web/Yayoi;
+	index  index.html index.htm;
+
+    location / {
+		try_files $uri $uri/ /index.html;
+    }
+
+    # redirect server error pages to the static page /50x.html
+    #
+    error_page   500 502 503 504  /50x.html;
+    location = /50x.html {
+        root   html;
+    }
+	
+    location /api/ {
+        fastcgi_pass   127.0.0.1:9001;
+        include        fastcgi_params;
+    }
 }
 ```
 

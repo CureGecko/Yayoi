@@ -1,0 +1,66 @@
+<style type="text/css">
+.submitPanel {
+	max-width: 700px;
+	margin: 0 auto;
+}
+.submitPhoto {
+	max-width: 100%;
+}
+</style>
+<span id="apiLoader"></span>
+{{range .}}
+<div class="panel panel-default submitPanel" id="image-{{.Number}}">
+	<span id="loader-{{.Number}}" class="hide"></span>
+	<div class="panel-body">
+		<a href="{{.Image}}" target="_BLANK"><img src="{{.Image}}" class="submitPhoto" /></a>
+		<br /><br />
+		<span class="submitRating">
+			<input type="rating" class="submitRatingChoice" />
+		</span>
+		<br /><br />
+		<span class="submitSource">
+			<input type="text" class="form-control submitSourceURL" placeholder="Source URL" />
+		</span>
+		<br />
+		<span class="submitAuthor">
+			<input type="text" class="form-control submitAuthorName" placeholder="Author Name" />
+			<input type="text" class="form-control submitAuthorURL" placeholder="Author URL" />
+		</span>
+		<br />
+		<span class="submitTags">
+			<sapn>Tags (one per line)</span>
+			<input type="tags" class="submitTagsInput" />
+	</div>
+	<script type="text/javascript">
+	$("#loader-{{.Number}}").load(APIPath+"uploads/tags", {MD5: "{{.Upload.MD5}}"}, function(response, status, xhr) {
+		if ($("#loader-{{.Number}} #success").text()=="true") {
+			var tags = $("#loader-{{.Number}} #tags").text();
+			if (tags!="") {
+				$("#image-{{.Number}} .submitTagsInput").val(tags);
+				$("#image-{{.Number}} .submitTagsInput").change();
+			}
+
+			var source = $("#loader-{{.Number}} #source").text();
+			if (source!="") {
+				$("#image-{{.Number}} .submitSourceURL").val(source);
+			}
+			source = $("#image-{{.Number}} .submitSourceURL").val();
+			if (source!="" && $("#image-{{.Number}} .submitAuthorName").val()=="") {
+				$("#loader-{{.Number}}").load(APIPath+"external", {source: source}, function(response, status, xhr) {
+					if ($("#loader-{{.Number}} #success").text()=="true") {
+						$("#image-{{.Number}} .submitSourceURL").val($("#loader-{{.Number}} #post").text());
+						$("#image-{{.Number}} .submitAuthorName").val($("#loader-{{.Number}} #authorName").text());
+						$("#image-{{.Number}} .submitAuthorURL").val($("#loader-{{.Number}} #authorURL").text());
+					}
+				});
+			}
+		}
+	});
+	</script>
+</div>
+<br />
+{{end}}
+<script type="text/javascript">
+$(".submitRatingChoice").initRating();
+$(".submitTagsInput").initTags();
+</script>

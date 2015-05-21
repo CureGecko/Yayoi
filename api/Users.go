@@ -27,7 +27,6 @@ import (
 	"time"
 )
 
-//
 type Users struct {
 	Server  *Iori
 	Auth    *Auth
@@ -75,7 +74,7 @@ func (u Users) Process() {
 		case "reset":
 			u.Reset()
 		default:
-			fmt.Fprint(u.Writer, "Hello World\n")
+			fmt.Fprint(u.Writer, "404 Not Found\n")
 		}
 	}
 }
@@ -113,7 +112,7 @@ func (u Users) Login() {
 		providedPassword := u.Request.Form.Get("password")
 
 		now := time.Now().Unix()
-		remoteAddr := u.Request.RemoteAddr[0:strings.Index(u.Request.RemoteAddr, ":")]
+		remoteAddr := u.Request.RemoteAddr[0:strings.LastIndex(u.Request.RemoteAddr, ":")]
 
 		var login *Login
 		obj, err := u.Server.DBmap.Get(Login{}, remoteAddr)
@@ -239,7 +238,7 @@ func (u Users) Salt() {
 	info := Info{true, false, "", nonce, ""}
 
 	now := time.Now().Unix()
-	remoteAddr := u.Request.RemoteAddr[0:strings.Index(u.Request.RemoteAddr, ":")]
+	remoteAddr := u.Request.RemoteAddr[0:strings.LastIndex(u.Request.RemoteAddr, ":")]
 
 	var login *Login
 	obj, err := u.Server.DBmap.Get(Login{}, remoteAddr)
